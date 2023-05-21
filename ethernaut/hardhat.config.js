@@ -8,7 +8,7 @@ module.exports = {
       { version: "0.8.15" },
       { version: "0.8.13" },
       { version: "0.8.0" },
-      { version: "0.5.14" },
+      { version: "0.7.3" },
     ],
   },
 };
