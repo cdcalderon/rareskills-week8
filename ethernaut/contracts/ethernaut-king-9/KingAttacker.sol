@@ -26,4 +26,8 @@ contract KingAttacker {
     receive() external payable {
         require(false, "cannot claim my throne!");
     }
+
+    // fallback() external {
+    //     revert();
+    // }
 }
