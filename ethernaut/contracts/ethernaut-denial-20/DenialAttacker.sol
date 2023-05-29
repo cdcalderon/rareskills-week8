@@ -20,6 +20,10 @@ contract DenialAttacker {
         // assert consumes all (!) gas
         assert(false);
 
+        // while(true){
+
+        // }
+
         // the others don't
         // revert("revert");
         // require(false, "require");
