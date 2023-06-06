@@ -8,6 +8,20 @@ The main objective is to prevent the contract owner from withdrawing funds from 
 
 The contract contains a `withdraw()` function which makes an unchecked low-level `call` to an address set by `setWithdrawPartner()`. This unchecked `call` is the major vulnerability, as it does not check the return value. This `call` forwards all gas or specifies it to another smart contract that we can control. An external call that doesn't check the return value can be exploited to consume all forwarding gas, leading to a transaction revert due to out of gas.
 
+Currently, if the `partner.call{value: amountToSend}("");` operation fails, the execution halts, and the next lines of code, including the owner's transfer, are not run. If you checked the success of the operation, you could implement logic that would handle a failure case in a way that doesn't compromise the functioning of the rest of your contract.
+
+A common way to check the success of a call is to capture the return value of the call operation, which is a boolean. Here is a simple example:
+
+```solidity
+(bool success,) = partner.call{value: amountToSend}("");
+if (!success) {
+    // handle the failure case, e.g., emit an event, revert the transaction, etc.
+} else {
+    // proceed with the remaining operations, such as transferring to the owner
+    payable(owner).transfer(amountToSend);
+}
+```
+
 ## Exploit
 
 The vulnerability can be exploited in two ways:

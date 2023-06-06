@@ -53,7 +53,7 @@ contract Governance {
         );
 
         idUsed[id] = false;
-        delete viceroys[viceroy];
+        delete viceroys[viceroy]; // The flaw: Mappings inside the struct are not cleared
     }
 
     function approveVoter(address voter) external {

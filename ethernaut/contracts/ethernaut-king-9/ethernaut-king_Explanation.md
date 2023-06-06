@@ -11,7 +11,11 @@ The vulnerability is in the function that transfers funds to the previous king. 
 ```solidity
 receive() external payable {
         require(msg.value >= prize || msg.sender == owner);
+
+        // Transfers the value sent to the current king. If the king is a contract,
+        // this would call the contract's `receive` or `fallback` function
         payable(king).transfer(msg.value);
+
         king = msg.sender;
         prize = msg.value;
     }

